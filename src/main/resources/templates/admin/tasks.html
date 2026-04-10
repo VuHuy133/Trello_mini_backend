@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Tasks - TaskFlow</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-w: 240px;
+            --sidebar-bg: #0f172a;
+            --accent: #3b82f6;
+            --topbar-h: 64px;
+            --body-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --muted: #64748b;
+        }
+        * { box-sizing: border-box; }
+        body { background: var(--body-bg); font-family: 'Segoe UI', -apple-system, sans-serif; color: var(--text); margin: 0; }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed; left: 0; top: 0; bottom: 0;
+            width: var(--sidebar-w); background: var(--sidebar-bg);
+            display: flex; flex-direction: column; z-index: 100; overflow-y: auto;
+        }
+        .sidebar-brand { padding: 20px 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .brand-name { font-size: 17px; font-weight: 700; color: #fff; }
+        .brand-sub { font-size: 11px; color: #94a3b8; }
+        .sidebar-nav { padding: 16px 12px; flex: 1; }
+        .nav-label { font-size: 10px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: .05em; padding: 10px 8px 4px; }
+        .s-link {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px; border-radius: 8px;
+            color: #94a3b8; text-decoration: none;
+            font-size: 13.5px; font-weight: 500;
+            transition: all .15s; margin-bottom: 2px;
+        }
+        .s-link:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .s-link.active { background: var(--accent); color: #fff; }
+        .s-link i { width: 18px; text-align: center; font-size: 13px; }
+        .sidebar-footer { padding: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
+        .logout-btn {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px; border-radius: 8px; color: #f87171;
+            text-decoration: none; font-size: 13.5px; font-weight: 500;
+            transition: all .15s; width: 100%;
+        }
+        .logout-btn:hover { background: rgba(248,113,113,0.1); color: #ef4444; }
+
+        /* Main */
+        .main-wrapper { margin-left: var(--sidebar-w); min-height: 100vh; display: flex; flex-direction: column; }
+
+        /* Topbar */
+        .topbar {
+            height: var(--topbar-h); background: #fff;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 24px; gap: 12px;
+            position: sticky; top: 0; z-index: 50;
+        }
+        .topbar-left { font-weight: 600; font-size: 15px; }
+        .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+        .avatar {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: #ef4444; color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; flex-shrink: 0;
+        }
+
+        /* Content */
+        .page-content { padding: 24px; flex: 1; }
+
+        /* Table */
+        .data-table { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .data-table th { background: #f8f9fa; font-weight: 600; font-size: 13px; border-bottom: 2px solid var(--border); }
+        .data-table td { vertical-align: middle; font-size: 14px; }
+        .data-table tr:hover td { background: #f8fafc; }
+
+        /* Badge */
+        .b-high { background: #fee2e2; color: #dc2626; font-size: 11px; padding: 2px 8px; border-radius: 6px; }
+        .b-med  { background: #fef3c7; color: #d97706; font-size: 11px; padding: 2px 8px; border-radius: 6px; }
+        .b-low  { background: #dcfce7; color: #16a34a; font-size: 11px; padding: 2px 8px; border-radius: 6px; }
+        .b-todo { background: #f1f5f9; color: #64748b; font-size: 11px; padding: 2px 8px; border-radius: 6px; }
+        .b-doing{ background: #fef3c7; color: #d97706; font-size: 11px; padding: 2px 8px; border-radius: 6px; }
+        .b-done { background: #dcfce7; color: #16a34a; font-size: 11px; padding: 2px 8px; border-radius: 6px; }
+
+        @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .main-wrapper { margin-left: 0; } }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-name"><i class="fas fa-check-square me-2" style="color:#60a5fa;"></i>TaskFlow</div>
+            <div class="brand-sub">Admin Panel</div>
+        </div>
+        <div class="sidebar-nav">
+            <a href="/" class="s-link"><i class="fas fa-th-large"></i> Dashboard</a>
+            <a href="/admin/users" class="s-link"><i class="fas fa-users"></i> Quản lý users</a>
+            <a href="/admin/projects" class="s-link"><i class="fas fa-sitemap"></i> Quản lý projects</a>
+            <a href="/admin/tasks" class="s-link active"><i class="fas fa-list-check"></i> Quản lý tasks</a>
+        </div>
+        <div class="sidebar-footer">
+            <a href="/logout" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Đăng xuất</a>
+        </div>
+    </nav>
+
+    <!-- Main wrapper -->
+    <div class="main-wrapper">
+
+        <!-- Topbar -->
+        <div class="topbar">
+            <div class="topbar-left">Quản lý Tasks</div>
+            <div class="topbar-right">
+                <div class="avatar" th:text="${session.user != null ? #strings.substring(session.user.fullName != null ? session.user.fullName : 'A', 0, 1).toUpperCase() : 'A'}">A</div>
+                <span class="text-muted small d-none d-md-inline" th:text="${session.user != null ? session.user.fullName : 'Admin'}">Admin</span>
+            </div>
+        </div>
+
+        <!-- Page content -->
+        <div class="page-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                <div>
+                    <h3 style="font-size:20px; font-weight:700; margin:0;">Quản lý Tasks</h3>
+                    <p style="font-size:13px; color:var(--muted); margin:4px 0 0;" th:text="'Tổng cộng ' + ${#lists.size(tasks)} + ' tasks trên toàn hệ thống'">0 tasks</p>
+                </div>
+            </div>
+
+            <!-- Flash messages -->
+            <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
+                <span th:text="${success}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                <span th:text="${error}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <div th:if="${#lists.isEmpty(tasks)}" class="text-center text-muted py-5">
+                <i class="fas fa-inbox fa-2x mb-2 d-block opacity-50"></i>
+                <p>Chưa có task nào trong hệ thống</p>
+            </div>
+
+            <div class="data-table" th:unless="${#lists.isEmpty(tasks)}">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th class="ps-3">ID</th>
+                            <th>Tiêu đề</th>
+                            <th>Dự án</th>
+                            <th>Trạng thái</th>
+                            <th>Ưu tiên</th>
+                            <th>Người thực hiện</th>
+                            <th>Ngày tạo</th>
+                            <th class="text-end pe-3">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="task : ${tasks}">
+                            <td class="ps-3" th:text="${task.id}">1</td>
+                            <td>
+                                <a th:href="@{'/tasks/' + ${task.id}}" class="text-decoration-none fw-bold text-dark" th:text="${task.title}">Task</a>
+                            </td>
+                            <td>
+                                <a th:href="@{'/projects/' + ${task.project?.id}}" class="text-decoration-none"
+                                   th:text="${task.project != null ? (projectNames[task.project.id] != null ? projectNames[task.project.id] : 'Dự án #' + task.project.id) : 'N/A'}">Project</a>
+                            </td>
+                            <td>
+                                <span th:if="${task.status == 'TODO'}"  class="b-todo">Chưa bắt đầu</span>
+                                <span th:if="${task.status == 'DOING'}" class="b-doing">Đang làm</span>
+                                <span th:if="${task.status == 'DONE'}"  class="b-done">Hoàn thành</span>
+                            </td>
+                            <td>
+                                <span th:if="${task.priority == 'HIGH'}"   class="b-high">Cao</span>
+                                <span th:if="${task.priority == 'MEDIUM'}" class="b-med">TB</span>
+                                <span th:if="${task.priority == 'LOW'}"    class="b-low">Thấp</span>
+                            </td>
+                            <td>
+                                <span class="small" th:text="${task.assignee != null ? (assigneeNames[task.assignee.id] != null ? assigneeNames[task.assignee.id] : 'User #' + task.assignee.id) : 'Chưa gán'}">-</span>
+                            </td>
+                            <td>
+                                <span class="small text-muted" th:text="${task.createdAt != null ? #temporals.format(task.createdAt, 'dd/MM/yyyy') : '-'}">-</span>
+                            </td>
+                            <td class="text-end pe-3">
+                                <div class="d-flex gap-1 justify-content-end">
+                                    <a th:href="@{'/tasks/' + ${task.id}}" class="btn btn-sm btn-outline-secondary">Xem</a>
+                                    <form th:action="@{'/admin/tasks/' + ${task.id} + '/delete'}" method="post">
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-delete-task"
+                                                th:data-taskname="${task.title}">Xóa</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div><!-- /page-content -->
+    </div><!-- /main-wrapper -->
+
+    <!-- Confirm Delete Modal -->
+    <div class="modal fade" id="confirmDeleteModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Xác nhận xóa Task</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="deleteConfirmText"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Xóa</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let activeForm = null;
+
+        document.querySelectorAll('.btn-delete-task').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var name = this.getAttribute('data-taskname');
+                document.getElementById('deleteConfirmText').textContent =
+                    'Bạn có chắc muốn xóa task "' + name + '"? Hành động này không thể hoàn tác!';
+                activeForm = this.closest('form');
+                new bootstrap.Modal(document.getElementById('confirmDeleteModal')).show();
+            });
+        });
+
+        document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+            if (activeForm) activeForm.submit();
+        });
+    </script>
+</body>
+</html>

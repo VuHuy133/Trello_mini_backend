@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Tạo/Chỉnh sửa công việc - Trello Mini</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { 
+            background-color: #f5f7fa; 
+            font-family: 'Segoe UI', sans-serif;
+        }
+        
+        .navbar-custom {
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .form-container {
+            max-width: 800px;
+            margin: 30px auto;
+        }
+        
+        .form-card {
+            background: white;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            padding: 30px;
+        }
+        
+        .form-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        .form-control, .form-select, textarea {
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-size: 14px;
+        }
+        
+        .form-control:focus, .form-select:focus, textarea:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            outline: none;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+            font-family: inherit;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e4e8;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        
+        .btn-secondary {
+            background: #e9ecef;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #dee2e6;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+        
+        .form-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e1e4e8;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar-custom">
+        <div class="container-fluid px-4">
+            <div class="d-flex justify-content-between align-items-center py-3">
+                <a href="/tasks" class="text-decoration-none fw-bold text-dark">Quay lại</a>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-muted" th:text="${session.user != null ? session.user.fullName : 'User'}">User</span>
+                    <a href="/logout" class="btn btn-outline-danger" style="font-size: 12px; padding: 4px 12px;">Thoát</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="form-container">
+        <div class="form-card">
+            <h1 class="form-title">
+                <span th:if="${!isEditMode}">Tạo công việc mới</span>
+                <span th:if="${isEditMode}">Chỉnh sửa công việc</span>
+            </h1>
+
+            <form th:action="${isEditMode ? '/tasks/' + task.id + '/update' : '/tasks'}" method="post">
+                
+                <!-- Basic Information Section -->
+                <div class="form-section-title">Thông tin cơ bản</div>
+
+                <!-- Tiêu đề -->
+                <div class="form-group">
+                    <label class="form-label">Tiêu đề công việc</label>
+                    <input type="text" class="form-control" name="title" required 
+                           th:value="${task?.title}" 
+                           placeholder="Nhập tiêu đề công việc...">
+                    <div class="help-text">Mô tả ngắn gọn nội dung công việc</div>
+                </div>
+
+                <!-- Mô tả -->
+                <div class="form-group">
+                    <label class="form-label">Mô tả chi tiết</label>
+                    <textarea class="form-control" name="description" 
+                              placeholder="Nhập mô tả chi tiết công việc...">[[${task?.description}]]</textarea>
+                    <div class="help-text">Giải thích chi tiết yêu cầu và kỳ vọng cho công việc này</div>
+                </div>
+
+                <!-- Dự án -->
+                <div class="form-group" th:if="${presetProjectId == null}">
+                    <label class="form-label">Dự án</label>
+                    <select class="form-select" name="project.id" required>
+                        <option value="">Chọn dự án...</option>
+                        <option th:each="project : ${projects}" 
+                                th:value="${project.id}" 
+                                th:text="${project.name}"
+                                th:selected="${task?.project?.id == project.id}">Dự án</option>
+                    </select>
+                </div>
+                <input th:if="${presetProjectId != null}" type="hidden" name="project.id" th:value="${presetProjectId}">
+
+              
+
+                <div class="form-row">
+                    <!-- Ưu tiên -->
+                    <div class="form-group">
+                        <label class="form-label">Ưu tiên</label>
+                        <select class="form-select" name="priority" required>
+                            <option value="LOW" th:selected="${task?.priority == 'LOW'}">Thấp</option>
+                            <option value="MEDIUM" th:selected="${task?.priority == 'MEDIUM'}">Trung bình</option>
+                            <option value="HIGH" th:selected="${task?.priority == 'HIGH'}">Cao</option>
+                        </select>
+                    </div>
+
+                    <!-- Trạng thái -->
+                    <div class="form-group" th:if="${presetStatus == null}">
+                        <label class="form-label">Trạng thái</label>
+                        <select class="form-select" name="status" required>
+                            <option value="TODO" th:selected="${task?.status == 'TODO'}">Chưa bắt đầu</option>
+                            <option value="DOING" th:selected="${task?.status == 'DOING'}">Đang thực hiện</option>
+                            <option value="DONE" th:selected="${task?.status == 'DONE'}">Hoàn thành</option>
+                        </select>
+                    </div>
+                    <input th:if="${presetStatus != null}" type="hidden" name="status" th:value="${presetStatus}">
+                </div>
+
+                <div class="form-row">
+                    <!-- Người thực hiện -->
+                    <div class="form-group">
+                        <label class="form-label">Người thực hiện</label>
+                        <select class="form-select" name="assignee.id">
+                            <option value="">Chọn người thực hiện...</option>
+                            <option th:each="user : ${users}" 
+                                    th:value="${user.id}" 
+                                    th:text="${user.name != null ? user.name : user.email}"
+                                    th:selected="${task?.assignee?.id == user.id}">User</option>
+                        </select>
+                    </div>
+
+                    <!-- Ngày hạn chót -->
+                    <div class="form-group">
+                        <label class="form-label">Hạn chót</label>
+                        <input type="date" class="form-control" name="dueDate"
+                               th:value="${task?.dueDate != null ? #temporals.format(task.dueDate, 'yyyy-MM-dd') : ''}">
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="form-actions">
+                    <a href="/tasks" class="btn btn-secondary">Hủy</a>
+                    <button type="button" class="btn btn-primary" onclick="showConfirmModal()">
+                        <span th:if="${!isEditMode}">Tạo công việc</span>
+                        <span th:if="${isEditMode}">Cập nhật</span>
+                    </button>
+                </div>
+            </form>
+
+            <!-- Confirm Modal -->
+            <div class="modal fade" id="confirmModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Xác nhận</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p id="confirmMessage">Bạn có chắc chắn muốn tạo công việc này không?</p>
+                            <div id="confirmSummary" style="background: #f8f9fa; border-radius: 6px; padding: 15px; margin-top: 10px;">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Quay lại</button>
+                            <button type="button" class="btn btn-primary" onclick="submitForm()">Xác nhận</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showConfirmModal() {
+            var form = document.querySelector('form');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            var title = form.querySelector('[name="title"]').value;
+            var priority = form.querySelector('select[name="priority"]');
+            var status = form.querySelector('select[name="status"]');
+            var priorityText = priority ? priority.options[priority.selectedIndex].text : '';
+            var statusText = status ? status.options[status.selectedIndex].text : '';
+            if (!statusText) {
+                var hiddenStatus = form.querySelector('input[name="status"]');
+                statusText = hiddenStatus ? hiddenStatus.value : '';
+            }
+            var dueDate = form.querySelector('[name="dueDate"]').value || 'Chưa đặt';
+
+            var isEdit = /*[[${isEditMode}]]*/ false;
+            document.getElementById('confirmMessage').textContent =
+                isEdit ? 'Bạn có chắc chắn muốn cập nhật công việc này?' : 'Bạn có chắc chắn muốn tạo công việc này?';
+
+            document.getElementById('confirmSummary').innerHTML =
+                '<strong>Tiêu đề:</strong> ' + escapeHtml(title) + '<br>' +
+                (priorityText ? '<strong>Ưu tiên:</strong> ' + escapeHtml(priorityText) + '<br>' : '') +
+                (statusText ? '<strong>Trạng thái:</strong> ' + escapeHtml(statusText) + '<br>' : '') +
+                '<strong>Hạn chót:</strong> ' + escapeHtml(dueDate);
+
+            new bootstrap.Modal(document.getElementById('confirmModal')).show();
+        }
+
+        function submitForm() {
+            document.querySelector('form').submit();
+        }
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(text));
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

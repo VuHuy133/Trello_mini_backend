@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*.swn
+*.iml
+*.iws
+*.ipr
+
+# Maven
+target/
+.m2/
+*.class
+*.jar
+*.war
+*.ear
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.out
+*.dSYM
+
+# System
+.DS_Store
+Thumbs.db
+
+# Documentation
+docs/
+README.md
+LICENSE
+
+# Node (if any frontend)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Misc
+*.log
+*.pid
+*.seed
+.cache
+dist/
