@@ -85,10 +85,7 @@ docker-compose up -d
 
 The application will be available at `http://localhost:3000`
 
-MySQL will run on `localhost:3306` with credentials:
-- Username: `root`
-- Password: `123456`
-- Database: `trello`
+
 
 Redis will run on `localhost:6379`
 
@@ -98,12 +95,7 @@ Redis will run on `localhost:6379`
 
 2. Update `application.properties` with your MySQL and Redis connection details:
 ```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/trello
-spring.datasource.username=root
-spring.datasource.password=123456
-spring.redis.host=localhost
-spring.redis.port=6379
-```
+
 
 3. Build the project:
 ```bash
