@@ -12,10 +12,14 @@ public class CorsConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**")
-                        .allowedOrigins("*")
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                        .allowedHeaders("*");
+                registry.addMapping("/api/**")
+                        // React dev server (Vite mặc định port 5173, CRA port 3000)
+                        .allowedOrigins("http://localhost:3000", "http://localhost:5173")
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+                        .allowedHeaders("*")
+                        // Expose headers để React đọc được Authorization và X-Refresh-Token
+                        .exposedHeaders("Authorization", "X-Refresh-Token")
+                        .allowCredentials(false);
             }
         };
     }

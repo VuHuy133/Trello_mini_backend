@@ -2,15 +2,16 @@
 FROM maven:3.9-eclipse-temurin-17 AS builder
 WORKDIR /build
 
-# Copy Maven files
+# Copy Maven configuration and files
+COPY maven-settings.xml ./settings.xml
 COPY pom.xml .
 COPY .mvn .mvn
 
 # Copy source code
 COPY src ./src
 
-# Build application
-RUN mvn clean package -DskipTests -q
+# Build application with custom Maven settings and increased timeout
+RUN mvn clean package -DskipTests -q -s ./settings.xml
 
 # Runtime stage
 FROM eclipse-temurin:17-jre-alpine

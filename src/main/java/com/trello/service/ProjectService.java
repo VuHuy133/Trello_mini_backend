@@ -30,6 +30,12 @@ public class ProjectService {
         if (project.getType() == null) {
             project.setType("PUBLIC");
         }
+        if (project.getTasks() == null) {
+            project.setTasks(new java.util.ArrayList<>());
+        }
+        if (project.getMembers() == null) {
+            project.setMembers(new java.util.ArrayList<>());
+        }
         return projectRepository.save(project);
     }
 
@@ -130,13 +136,20 @@ public class ProjectService {
      */
     public Project updateProject(Long id, Long userId, String name, String description) {
         Project project = getProjectById(id);
-        // Optionally check if user is owner or admin here
         if (name != null && !name.isEmpty()) {
             project.setName(name);
         }
         if (description != null && !description.isEmpty()) {
             project.setDescription(description);
         }
+        return projectRepository.save(project);
+    }
+
+    public Project updateProject(Long id, Long userId, String name, String description, String type) {
+        Project project = getProjectById(id);
+        if (name != null && !name.isEmpty()) project.setName(name);
+        if (description != null && !description.isEmpty()) project.setDescription(description);
+        if (type != null && !type.isEmpty()) project.setType(type);
         return projectRepository.save(project);
     }
 

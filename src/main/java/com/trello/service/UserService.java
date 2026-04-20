@@ -224,4 +224,10 @@ public class UserService {
 	public String encodePassword(String rawPassword) {
 		return passwordEncoder.encode(rawPassword);
 	}
+
+	public void updatePassword(Long userId, String newEncodedPassword) {
+		User user = getUserById(userId);
+		user.setPassword(newEncodedPassword);
+		userRepository.save(user);
+	}
 }

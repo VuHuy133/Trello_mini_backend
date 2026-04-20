@@ -17,6 +17,7 @@ import lombok.Setter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Index;
 
 @Getter
 @Setter
@@ -24,7 +25,11 @@ import jakarta.persistence.JoinColumn;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "project_members")
+@Table(name = "project_members", indexes = {
+    @Index(name = "idx_pm_project_id", columnList = "project_id"),
+    @Index(name = "idx_pm_user_id", columnList = "user_id"),
+    @Index(name = "idx_pm_project_user", columnList = "project_id,user_id", unique = true)
+})
 public class ProjectMember {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

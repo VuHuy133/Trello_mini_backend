@@ -17,13 +17,32 @@ public class JwtTokenProvider {
     @Value("${jwt.expiration}")
     private long jwtExpiration;
 
+    // Refresh token expiration: 30 days = 2592000 seconds = 2592000000 ms
+    private static final long REFRESH_TOKEN_EXPIRATION = 30 * 24 * 60 * 60 * 1000;
+
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
-    public String generateToken(String username) {
+    public String generateAccessToken(String username) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpiration);
+        return Jwts.builder()
+                .subject(username)
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    /**
+     * Generate Refresh Token (30 days expiry)
+     * @param username User ID
+     * @return JWT refresh token
+     */
+    public String generateRefreshToken(String username) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + REFRESH_TOKEN_EXPIRATION);
         return Jwts.builder()
                 .subject(username)
                 .issuedAt(now)

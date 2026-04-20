@@ -16,8 +16,10 @@ public class TokenBlacklistService {
     private final StringRedisTemplate stringRedisTemplate;
     private final JwtTokenProvider jwtTokenProvider;
 
-    private static final String ACTIVE_PREFIX    = "auth:active:";
-    private static final String BLACKLIST_PREFIX = "auth:blacklist:";
+    private static final String ACTIVE_PREFIX       = "auth:active:";
+    private static final String BLACKLIST_PREFIX    = "auth:blacklist:";
+    private static final String REFRESH_PREFIX      = "auth:refresh:";
+    private static final String REFRESH_BLACKLIST_PREFIX = "auth:refresh:blacklist:";
 
     /** Lưu token vào Redis sau khi login thành công.
      *  Key: auth:active:{userId}  →  Value: token */
@@ -104,6 +106,107 @@ public class TokenBlacklistService {
         } catch (Exception e) {
             log.error("Error getting active token for userId {}: {}", userId, e.getMessage());
             return null;
+        }
+    }
+
+    // ========== REFRESH TOKEN MANAGEMENT ==========
+
+    /**
+     * Lưu refresh token vào Redis
+     * Key: auth:refresh:{userId} → Value: {refresh_token}
+     * @param refreshToken JWT refresh token
+     * @param userId User ID
+     * @param ttlSeconds TTL in seconds (30 days)
+     */
+    public void saveRefreshToken(String refreshToken, String userId, long ttlSeconds) {
+        try {
+            if (refreshToken != null && refreshToken.startsWith("Bearer ")) {
+                refreshToken = refreshToken.substring(7);
+            }
+            log.info("saveRefreshToken called - userId: {}, ttlSeconds: {}", userId, ttlSeconds);
+
+            if (ttlSeconds <= 0) {
+                ttlSeconds = 30 * 24 * 60 * 60; // 30 days default
+                log.warn("TTL invalid, using default 30 days");
+            }
+
+            String key = REFRESH_PREFIX + userId;
+            stringRedisTemplate.opsForValue()
+                    .set(key, refreshToken, ttlSeconds, TimeUnit.SECONDS);
+
+            log.info("Refresh token saved successfully - key: {}, ttl: {}s", key, ttlSeconds);
+        } catch (Exception e) {
+            log.error("Error saving refresh token: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Lấy refresh token của user
+     * @param userId User ID
+     * @return Refresh token or null
+     */
+    public String getRefreshToken(String userId) {
+        try {
+            return stringRedisTemplate.opsForValue().get(REFRESH_PREFIX + userId);
+        } catch (Exception e) {
+            log.error("Error getting refresh token for userId {}: {}", userId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Kiểm tra refresh token trong blacklist
+     * @param refreshToken JWT refresh token
+     * @return true if blacklisted, false otherwise
+     */
+    public boolean isRefreshTokenBlacklisted(String refreshToken) {
+        try {
+            if (refreshToken != null && refreshToken.startsWith("Bearer ")) {
+                refreshToken = refreshToken.substring(7);
+            }
+            String blacklistKey = REFRESH_BLACKLIST_PREFIX + refreshToken;
+            boolean result = Boolean.TRUE.equals(stringRedisTemplate.hasKey(blacklistKey));
+            log.debug("isRefreshTokenBlacklisted check - result: {}", result);
+            return result;
+        } catch (Exception e) {
+            log.error("Error checking refresh token blacklist: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Đưa refresh token vào blacklist (logout)
+     * @param refreshToken JWT refresh token
+     * @param ttlSeconds TTL in seconds
+     */
+    public void blacklistRefreshToken(String refreshToken, long ttlSeconds) {
+        try {
+            if (refreshToken != null && refreshToken.startsWith("Bearer ")) {
+                refreshToken = refreshToken.substring(7);
+            }
+            log.info("blacklistRefreshToken called - ttlSeconds: {}", ttlSeconds);
+
+            if (ttlSeconds <= 0) {
+                ttlSeconds = 30 * 24 * 60 * 60; // 30 days default
+                log.warn("TTL is invalid, set default to 30 days");
+            }
+
+            String blacklistKey = REFRESH_BLACKLIST_PREFIX + refreshToken;
+            stringRedisTemplate.opsForValue()
+                    .set(blacklistKey, "1", ttlSeconds, TimeUnit.SECONDS);
+            log.info("Refresh token blacklisted successfully - key: {}, ttl: {}s", blacklistKey, ttlSeconds);
+
+            // Delete refresh key từ user profile
+            try {
+                String userId = jwtTokenProvider.getUsernameFromJWT(refreshToken);
+                String refreshKey = REFRESH_PREFIX + userId;
+                Boolean deleted = stringRedisTemplate.delete(refreshKey);
+                log.info("Deleted refresh key: {}, existed: {}", refreshKey, deleted);
+            } catch (Exception ex) {
+                log.warn("Could not extract userId from refresh token to delete refresh key: {}", ex.getMessage());
+            }
+        } catch (Exception e) {
+            log.error("Error blacklisting refresh token: {}", e.getMessage(), e);
         }
     }
 }

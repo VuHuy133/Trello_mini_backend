@@ -200,6 +200,43 @@ public class UserController {
     }
 
     /**
+     * Change current user password
+     */
+    @PutMapping("/{userId}/password")
+    public ResponseEntity<ApiResponse<?>> changePassword(
+            @PathVariable Long userId,
+            @RequestBody java.util.Map<String, String> body,
+            Authentication authentication) {
+        Long currentUserId = getCurrentUserId(authentication);
+        if (currentUserId == null || !userId.equals(currentUserId)) {
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(false).message("Không có quyền thực hiện thao tác này")
+                    .statusCode(HttpStatus.FORBIDDEN.value()).build();
+            return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+        }
+        String oldPassword = body.get("oldPassword");
+        String newPassword = body.get("newPassword");
+        if (oldPassword == null || newPassword == null) {
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(false).message("Thiếu mật khẩu cũ hoặc mới")
+                    .statusCode(HttpStatus.BAD_REQUEST.value()).build();
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+        User user = userService.getUserById(userId);
+        if (!userService.validatePassword(oldPassword, user.getPassword())) {
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(false).message("Mật khẩu cũ không đúng")
+                    .statusCode(HttpStatus.BAD_REQUEST.value()).build();
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+        userService.updatePassword(userId, userService.encodePassword(newPassword));
+        ApiResponse<?> response = ApiResponse.builder()
+                .success(true).message("Đổi mật khẩu thành công")
+                .statusCode(HttpStatus.OK.value()).build();
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    /**
      * ADMIN: Get all users (ADMIN only)
      */
     @GetMapping

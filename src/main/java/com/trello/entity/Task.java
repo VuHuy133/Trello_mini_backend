@@ -16,6 +16,7 @@ import lombok.Setter;
 
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Index;
 
 @Getter
 @Setter
@@ -23,7 +24,16 @@ import jakarta.persistence.JoinColumn;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "tasks")
+@Table(name = "tasks", indexes = {
+    @Index(name = "idx_project_id", columnList = "project_id"),
+    @Index(name = "idx_user_id", columnList = "user_id"),
+    @Index(name = "idx_assignee_id", columnList = "assignee_id"),
+    @Index(name = "idx_status", columnList = "status"),
+    @Index(name = "idx_priority", columnList = "priority"),
+    @Index(name = "idx_project_status", columnList = "project_id,status"),
+    @Index(name = "idx_duedate", columnList = "dueDate"),
+    @Index(name = "idx_status_duedate", columnList = "status,dueDate")
+})
 public class Task {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,6 +58,7 @@ public class Task {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime dueDate;
+    private Integer position;
     // private Double estimateHours;
 }
 

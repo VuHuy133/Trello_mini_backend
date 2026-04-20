@@ -68,17 +68,23 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             log.info("OAuth2 user ready: id={}, email={}", user.getId(), email);
 
             // Generate JWT token
-            String jwtToken = jwtTokenProvider.generateToken(user.getId().toString());
+            String jwtToken = jwtTokenProvider.generateAccessToken(user.getId().toString());
             long tokenTtl = jwtTokenProvider.getTokenExpirationInSeconds(jwtToken);
 
-            // Save to session
-            request.getSession().setAttribute("user", user);
-            request.getSession().setAttribute("jwtToken", jwtToken);
+            // Generate Refresh token
+            String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId().toString());
 
-            log.info("JWT token generated for user: {}", user.getId());
+            log.info("JWT token generated for OAuth2 user: {}", user.getId());
 
-            // Redirect to user page after successful OAuth2 login
-            getRedirectStrategy().sendRedirect(request, response, "/user");
+            // Stateless: redirect to React frontend với token trong query params
+            // React sẽ lưu token vào localStorage
+            String redirectUrl = UriComponentsBuilder
+                    .fromUriString("http://localhost:3000/oauth2/callback")
+                    .queryParam("token", jwtToken)
+                    .queryParam("refreshToken", refreshToken)
+                    .build().toUriString();
+
+            getRedirectStrategy().sendRedirect(request, response, redirectUrl);
 
         } catch (Exception e) {
             log.error("Error during OAuth2 authentication success: {}", e.getMessage(), e);

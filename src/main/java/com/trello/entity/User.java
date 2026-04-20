@@ -17,6 +17,7 @@ import lombok.Setter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.Index;
 import java.util.List;
 
 @Getter
@@ -25,7 +26,12 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "users")
+@Table(name = "users", indexes = {
+    @Index(name = "idx_username", columnList = "username", unique = true),
+    @Index(name = "idx_email", columnList = "email", unique = true),
+    @Index(name = "idx_role", columnList = "role"),
+    @Index(name = "idx_created_at", columnList = "createdAt")
+})
 public class User {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

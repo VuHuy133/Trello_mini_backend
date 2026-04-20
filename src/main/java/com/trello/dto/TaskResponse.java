@@ -15,6 +15,7 @@ public class TaskResponse {
     
     private Long id;
     private Long projectId;
+    private ProjectDTO project;
     private Long userId;
     private Long assigneeId;
     private String title;
@@ -22,6 +23,17 @@ public class TaskResponse {
     private String status;
     private String priority;
     private LocalDateTime dueDate;
+    private Integer position;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ProjectDTO {
+        private Long id;
+        private String name;
+        private String type;
+    }
 }

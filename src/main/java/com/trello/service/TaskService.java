@@ -3,6 +3,7 @@ package com.trello.service;
 import com.trello.entity.Task;
 import com.trello.entity.Project;
 import com.trello.entity.User;
+import com.trello.dto.ReorderTaskRequest;
 import com.trello.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -147,5 +149,41 @@ public class TaskService {
     @Transactional(readOnly = true)
     public boolean canUserAccessTask(Long taskId, Long userId) {
         return true;
+    }
+
+    /**
+     * Reorder tasks with new positions and statuses
+     */
+    @CacheEvict(value = {"tasks", "tasksByProject"}, allEntries = true)
+    public List<Task> reorderTasks(Long projectId, List<ReorderTaskRequest.ReorderTaskItem> items, Long userId) {
+        // Validate project exists
+        Project project = projectService.getProjectById(projectId);
+        
+        // Update each task
+        for (ReorderTaskRequest.ReorderTaskItem item : items) {
+            Task task = getTaskById(item.getId());
+            if (task != null && task.getProject().getId().equals(projectId)) {
+                if (item.getStatus() != null) {
+                    task.setStatus(item.getStatus());
+                }
+                if (item.getPosition() != null) {
+                    task.setPosition(item.getPosition());
+                }
+                task.setUpdatedAt(LocalDateTime.now());
+                taskRepository.save(task);
+            }
+        }
+        
+        // Return all tasks for the project sorted by status and position
+        List<Task> tasks = taskRepository.findByProject(project);
+        return tasks.stream()
+                .sorted((a, b) -> {
+                    int statusCompare = (a.getStatus() != null ? a.getStatus() : "").compareTo(b.getStatus() != null ? b.getStatus() : "");
+                    if (statusCompare != 0) return statusCompare;
+                    Integer posA = a.getPosition() != null ? a.getPosition() : Integer.MAX_VALUE;
+                    Integer posB = b.getPosition() != null ? b.getPosition() : Integer.MAX_VALUE;
+                    return posA.compareTo(posB);
+                })
+                .collect(Collectors.toList());
     }
 }

@@ -3,6 +3,7 @@ package com.trello.controller;
 import com.trello.dto.ApiResponse;
 import com.trello.dto.TaskRequest;
 import com.trello.dto.TaskResponse;
+import com.trello.dto.ReorderTaskRequest;
 import com.trello.entity.Task;
 import com.trello.entity.TaskComment;
 import com.trello.entity.User;
@@ -229,6 +230,47 @@ public class TaskController {
     }
 
     /**
+     * PATCH /api/projects/{projectId}/tasks/reorder - Cập nhật vị trí (position) của các Task
+     */
+    @PatchMapping("/{projectId}/tasks/reorder")
+    public ResponseEntity<ApiResponse<?>> reorderTasks(
+            @PathVariable Long projectId,
+            @Valid @RequestBody ReorderTaskRequest request,
+            Authentication authentication) {
+        try {
+            Long userId = extractUserId(authentication);
+            if (userId == null) {
+                return new ResponseEntity<>(ApiResponse.builder()
+                        .success(false)
+                        .message("Vui lòng đăng nhập")
+                        .statusCode(HttpStatus.UNAUTHORIZED.value())
+                        .build(), HttpStatus.UNAUTHORIZED);
+            }
+
+            List<Task> reorderedTasks = taskService.reorderTasks(projectId, request.getTasks(), userId);
+            List<TaskResponse> taskResponses = reorderedTasks.stream()
+                    .map(this::convertToResponse)
+                    .collect(Collectors.toList());
+
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(true)
+                    .message("Cập nhật thứ tự công việc thành công")
+                    .statusCode(HttpStatus.OK.value())
+                    .data(taskResponses)
+                    .build();
+
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(false)
+                    .message("Lỗi khi cập nhật thứ tự công việc: " + e.getMessage())
+                    .statusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
      * POST /api/tasks/{taskId}/comments - Thêm bình luận vào Task
      */
     @PostMapping("/{projectId}/tasks/{taskId}/comments")
@@ -343,13 +385,24 @@ public class TaskController {
     }
 
     private TaskResponse convertToResponse(Task task) {
+        TaskResponse.ProjectDTO projectDTO = null;
+        if (task.getProject() != null) {
+            projectDTO = TaskResponse.ProjectDTO.builder()
+                    .id(task.getProject().getId())
+                    .name(task.getProject().getName())
+                    .type(task.getProject().getType())
+                    .build();
+        }
+        
         return TaskResponse.builder()
             .id(task.getId())
             .projectId(task.getProject() != null ? task.getProject().getId() : null)
+            .project(projectDTO)
             .title(task.getTitle())
             .description(task.getDescription())
             .status(task.getStatus())
             .priority(task.getPriority())
+            .position(task.getPosition())
             .assigneeId(task.getAssignee() != null ? task.getAssignee().getId() : null)
             .userId(task.getUser() != null ? task.getUser().getId() : null)
             .createdAt(task.getCreatedAt())

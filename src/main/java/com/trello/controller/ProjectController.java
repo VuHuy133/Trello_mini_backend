@@ -112,7 +112,7 @@ public class ProjectController {
      * POST /api/projects - Tạo dự án mới (Admin)
      */
     @PostMapping
-    @PreAuthorize("has Role('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<?>> createProject(
             @Valid @RequestBody ProjectRequest request,
             Authentication authentication) {
@@ -126,10 +126,12 @@ public class ProjectController {
                         .build(), HttpStatus.UNAUTHORIZED);
             }
 			
+			User owner = userService.getUserById(userId);
 			Project project = Project.builder()
 				.name(request.getName())
 				.description(request.getDescription())
 				.type(request.getType())
+				.owner(owner)
 				.build();
 
                 Project createdProject = projectService.createProject(project);
@@ -183,6 +185,163 @@ public class ProjectController {
             ApiResponse<?> response = ApiResponse.builder()
                     .success(false)
                     .message("Lỗi khi tham gia dự án: " + e.getMessage())
+                    .statusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * GET /api/projects/{id} - Lấy chi tiết dự án theo ID
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<?>> getProjectById(
+            @PathVariable Long id,
+            Authentication authentication) {
+        try {
+            Long userId = extractUserId(authentication);
+            Project project = projectService.getProjectById(id);
+
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(true)
+                    .message("Lấy chi tiết dự án thành công")
+                    .statusCode(HttpStatus.OK.value())
+                    .data(convertToResponse(project, userId))
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(false)
+                    .message("Không tìm thấy dự án: " + e.getMessage())
+                    .statusCode(HttpStatus.NOT_FOUND.value())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        }
+    }
+
+    /**
+     * PUT /api/projects/{id} - Cập nhật dự án (Admin)
+     */
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<?>> updateProject(
+            @PathVariable Long id,
+            @Valid @RequestBody ProjectRequest request,
+            Authentication authentication) {
+        try {
+            Long userId = extractUserId(authentication);
+            Project updated = projectService.updateProject(id, userId, request.getName(), request.getDescription(), request.getType());
+
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(true)
+                    .message("Cập nhật dự án thành công")
+                    .statusCode(HttpStatus.OK.value())
+                    .data(convertToResponse(updated, userId))
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(false)
+                    .message("Lỗi khi cập nhật dự án: " + e.getMessage())
+                    .statusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * GET /api/projects/{id}/members - Lấy danh sách thành viên
+     */
+    @GetMapping("/{id}/members")
+    public ResponseEntity<ApiResponse<?>> getMembers(@PathVariable Long id) {
+        try {
+            List<ProjectMember> members = projectMemberService.getMembersOfProject(id);
+            List<ProjectMemberResponse> memberResponses = members.stream()
+                    .map(this::mapProjectMemberToResponse)
+                    .collect(Collectors.toList());
+
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(true)
+                    .message("Lấy danh sách thành viên thành công")
+                    .statusCode(HttpStatus.OK.value())
+                    .data(memberResponses)
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(false)
+                    .message("Lỗi: " + e.getMessage())
+                    .statusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * POST /api/projects/{id}/members - Thêm thành viên vào dự án (theo email)
+     */
+    @PostMapping("/{id}/members")
+    public ResponseEntity<ApiResponse<?>> addMember(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, Object> body) {
+        try {
+            String email = (String) body.get("email");
+            String role = body.containsKey("role") ? (String) body.get("role") : "MEMBER";
+
+            User user = null;
+            if (email != null) {
+                user = userService.findUserByEmail(email);
+            }
+            if (user == null && body.containsKey("userId")) {
+                Long userId = Long.parseLong(body.get("userId").toString());
+                user = userService.getUserById(userId);
+            }
+            if (user == null) {
+                ApiResponse<?> response = ApiResponse.builder()
+                        .success(false)
+                        .message("Không tìm thấy user với email đã cho")
+                        .statusCode(HttpStatus.NOT_FOUND.value())
+                        .build();
+                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+            }
+
+            projectMemberService.addMemberToProject(id, user.getId(), role);
+
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(true)
+                    .message("Thêm thành viên thành công")
+                    .statusCode(HttpStatus.OK.value())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(false)
+                    .message("Lỗi khi thêm thành viên: " + e.getMessage())
+                    .statusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * DELETE /api/projects/{id}/members/{userId} - Xóa thành viên khỏi dự án
+     */
+    @DeleteMapping("/{id}/members/{userId}")
+    public ResponseEntity<ApiResponse<?>> removeMember(
+            @PathVariable Long id,
+            @PathVariable Long userId) {
+        try {
+            projectMemberService.removeMemberFromProject(id, userId);
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(true)
+                    .message("Xóa thành viên thành công")
+                    .statusCode(HttpStatus.OK.value())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(false)
+                    .message("Lỗi: " + e.getMessage())
                     .statusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .build();
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -250,7 +409,7 @@ public class ProjectController {
                 .updatedAt(project.getUpdatedAt())
                 .type(project.getType())
                 .memberCount(members.size())
-                .taskCount((int) project.getTasks().size())
+                .taskCount(project.getTasks() != null ? (int) project.getTasks().size() : 0)
                 .members(memberResponses)
                 .joinedByCurrentUser(joinedByCurrentUser)
                 .build();

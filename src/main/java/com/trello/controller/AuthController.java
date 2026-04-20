@@ -101,15 +101,23 @@ public class AuthController {
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
             }
 
-            // Generate JWT token
-            String token = jwtTokenProvider.generateToken(user.getId().toString());
-            long tokenTtl = jwtTokenProvider.getTokenExpirationInSeconds(token);
-            System.out.println("DEBUG: Generated token TTL: " + tokenTtl + " seconds");
+            // Generate Access Token (24h)
+            String accessToken = jwtTokenProvider.generateAccessToken(user.getId().toString());
+            long accessTokenTtl = jwtTokenProvider.getTokenExpirationInSeconds(accessToken);
+            System.out.println("DEBUG: Generated access token TTL: " + accessTokenTtl + " seconds");
 
-            // Lưu token vào Redis
+            // Save access token vào Redis (active)
             tokenBlacklistService.saveActiveToken(
-                    token, user.getId().toString(),
-                    tokenTtl);
+                    accessToken, user.getId().toString(), accessTokenTtl);
+
+            // Generate Refresh Token (30 days)
+            String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId().toString());
+            long refreshTokenTtl = jwtTokenProvider.getTokenExpirationInSeconds(refreshToken);
+            System.out.println("DEBUG: Generated refresh token TTL: " + refreshTokenTtl + " seconds");
+
+            // Save refresh token vào Redis (refresh)
+            tokenBlacklistService.saveRefreshToken(
+                    refreshToken, user.getId().toString(), refreshTokenTtl);
 
             UserResponse userResponse = UserResponse.builder()
                     .id(user.getId())
@@ -119,16 +127,22 @@ public class AuthController {
                     .createdAt(user.getCreatedAt())
                     .build();
 
-            // Response with token in header and user data in body
+            // Response with tokens in body (stateless - React đọc từ body và lưu vào localStorage)
             ApiResponse<?> response = ApiResponse.builder()
                     .success(true)
                     .message("Đăng nhập thành công")
                     .statusCode(HttpStatus.OK.value())
-                    .data(userResponse)
+                    .data(java.util.Map.of(
+                        "user", userResponse,
+                        "accessToken", accessToken,
+                        "refreshToken", refreshToken,
+                        "expiresIn", accessTokenTtl
+                    ))
                     .build();
 
             return ResponseEntity.ok()
-                    .header("Authorization", "Bearer " + token)
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("X-Refresh-Token", refreshToken)
                     .body(response);
 
         } catch (Exception e) {
@@ -143,37 +157,48 @@ public class AuthController {
 
     /**
      * Logout endpoint (REST API)
-     * Client should invalidate token on their side
+     * Blacklist cả access token và refresh token
      */
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<?>> logout(@RequestHeader(value = "Authorization", required = false) String token) {
-        // Validate token exists
+    public ResponseEntity<ApiResponse<?>> logout(
+            @RequestHeader(value = "Authorization", required = false) String token,
+            @RequestParam(value = "refreshToken", required = false) String refreshToken) {
+        // Validate access token
         if (token == null || !token.startsWith("Bearer ")) {
             ApiResponse<?> response = ApiResponse.builder()
                     .success(false)
-                    .message("Token không hợp lệ hoặc không được cung cấp")
+                    .message("Access token không hợp lệ hoặc không được cung cấp")
                     .statusCode(HttpStatus.UNAUTHORIZED.value())
                     .build();
             return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
         }
 
         try {
-            String jwtToken = token.substring(7);
+            String accessToken = token.substring(7);
             
-            // Validate token
-            if (!jwtTokenProvider.validateToken(jwtToken)) {
+            // Validate access token
+            if (!jwtTokenProvider.validateToken(accessToken)) {
                 ApiResponse<?> response = ApiResponse.builder()
                         .success(false)
-                        .message("Token hết hạn hoặc không hợp lệ")
+                        .message("Access token hết hạn hoặc không hợp lệ")
                         .statusCode(HttpStatus.UNAUTHORIZED.value())
                         .build();
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
             }
 
-            // Đưa token vào blacklist Redis
+            // Đưa access token vào blacklist Redis
             tokenBlacklistService.blacklistToken(
-                    jwtToken,
-                    jwtTokenProvider.getTokenExpirationInSeconds(jwtToken));
+                    accessToken,
+                    jwtTokenProvider.getTokenExpirationInSeconds(accessToken));
+
+            // Đưa refresh token vào blacklist (nếu được cung cấp)
+            if (refreshToken != null && !refreshToken.isEmpty()) {
+                if (jwtTokenProvider.validateToken(refreshToken)) {
+                    tokenBlacklistService.blacklistRefreshToken(
+                            refreshToken,
+                            jwtTokenProvider.getTokenExpirationInSeconds(refreshToken));
+                }
+            }
 
             // Logout successful
             ApiResponse<?> response = ApiResponse.builder()
@@ -188,6 +213,101 @@ public class AuthController {
             ApiResponse<?> response = ApiResponse.builder()
                     .success(false)
                     .message("Lỗi khi đăng xuất: " + e.getMessage())
+                    .statusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Refresh access token endpoint
+     * Client gửi refresh token để lấy access token mới
+     * Refresh token được giữ lại (reuse pattern)
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<?>> refreshAccessToken(
+            @RequestParam(value = "refreshToken") String refreshToken) {
+        
+        // Validate refresh token
+        if (refreshToken == null || refreshToken.isEmpty()) {
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(false)
+                    .message("Refresh token không được cung cấp")
+                    .statusCode(HttpStatus.BAD_REQUEST.value())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+
+        try {
+            // Validate refresh token format
+            if (refreshToken.startsWith("Bearer ")) {
+                refreshToken = refreshToken.substring(7);
+            }
+
+            // Check in blacklist
+            if (tokenBlacklistService.isRefreshTokenBlacklisted(refreshToken)) {
+                ApiResponse<?> response = ApiResponse.builder()
+                        .success(false)
+                        .message("Refresh token đã bị logout, vui lòng login lại")
+                        .statusCode(HttpStatus.UNAUTHORIZED.value())
+                        .build();
+                return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+            }
+
+            // Validate refresh token
+            if (!jwtTokenProvider.validateToken(refreshToken)) {
+                ApiResponse<?> response = ApiResponse.builder()
+                        .success(false)
+                        .message("Refresh token hết hạn hoặc không hợp lệ")
+                        .statusCode(HttpStatus.UNAUTHORIZED.value())
+                        .build();
+                return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+            }
+
+            // Extract user ID from refresh token
+            String userId = jwtTokenProvider.getUsernameFromJWT(refreshToken);
+            
+            // Verify refresh token in Redis
+            String storedRefreshToken = tokenBlacklistService.getRefreshToken(userId);
+            if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
+                ApiResponse<?> response = ApiResponse.builder()
+                        .success(false)
+                        .message("Refresh token không khớp với token lưu trong Redis")
+                        .statusCode(HttpStatus.UNAUTHORIZED.value())
+                        .build();
+                return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+            }
+
+            // Generate new access token (keep refresh token)
+            String newAccessToken = jwtTokenProvider.generateAccessToken(userId);
+            long newAccessTokenTtl = jwtTokenProvider.getTokenExpirationInSeconds(newAccessToken);
+
+            // Save new access token to Redis active
+            tokenBlacklistService.saveActiveToken(newAccessToken, userId, newAccessTokenTtl);
+            
+            // Do NOT generate new refresh token (reuse pattern)
+            // Just return the new access token with old refresh token
+
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(true)
+                    .message("Refresh token thành công, access token mới được cấp")
+                    .statusCode(HttpStatus.OK.value())
+                    .data(java.util.Map.of(
+                        "accessToken", newAccessToken,
+                        "refreshToken", refreshToken,  // Return original refresh token
+                        "expiresIn", newAccessTokenTtl
+                    ))
+                    .build();
+
+            return ResponseEntity.ok()
+                    .header("Authorization", "Bearer " + newAccessToken)
+                    .header("X-Refresh-Token", refreshToken)
+                    .body(response);
+
+        } catch (Exception e) {
+            ApiResponse<?> response = ApiResponse.builder()
+                    .success(false)
+                    .message("Lỗi khi refresh token: " + e.getMessage())
                     .statusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .build();
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);

@@ -20,6 +20,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Index;
 import java.util.List;
 
 @Getter
@@ -28,7 +29,12 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "projects")
+@Table(name = "projects", indexes = {
+    @Index(name = "idx_owner_id", columnList = "owner_id"),
+    @Index(name = "idx_project_owner_created", columnList = "owner_id,createdAt"),
+    @Index(name = "idx_type", columnList = "type"),
+    @Index(name = "idx_created_at", columnList = "createdAt")
+})
 public class Project {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
